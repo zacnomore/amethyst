@@ -1,24 +1,24 @@
 pipeline {
     agent none
     stages {
-	stage("Pull new images") {
-	    agent {
-		label 'docker'
-	    }
-	    steps {
-		sh 'docker pull amethystrs/builder-linux:stable'
-		sh 'docker pull amethystrs/builder-linux:nightly'
-	    }
-	}
+        stage("Pull new images") {
+            agent {
+                label 'docker'
+            }
+            steps {
+                sh 'docker pull amethystrs/builder-linux:stable'
+                sh 'docker pull amethystrs/builder-linux:nightly'
+            }
+        }
         stage('Cargo Fmt') {
             environment {
                 RUSTFLAGS = "-D warnings"
             }
             agent {
-		docker {
-		    image 'amethystrs/builder-linux:stable'
-		    label 'docker'
-		} 
+                docker {
+                    image 'amethystrs/builder-linux:stable'
+                    label 'docker'
+                } 
             }
             steps {
                 echo 'Checking formatting...'
@@ -26,47 +26,47 @@ pipeline {
             }
         }
         stage('Cargo Check') {
-	    parallel {
-		stage("stable") {
-		    environment {
-			RUSTFLAGS = "-D warnings"
-		    }
-		    agent {
-			docker {
-			    image 'amethystrs/builder-linux:stable'
-			    label 'docker'
-			} 
-		    }
-		    steps {
-			echo 'Running Cargo check...'
-			sh 'cargo check --all --all-targets --features sdl_controller,json,saveload'
-		    }
-		}
-		stage("nightly") {
-		    environment {
-			RUSTFLAGS = "-D warnings"
-		    }
-		    agent {
-			docker {
-			    image 'amethystrs/builder-linux:nightly'
-			    label 'docker'
-			} 
-		    }
-		    steps {
-			echo 'Running Cargo check...'
-			sh 'cargo check --all --all-targets --features nightly'
-		    }
-		}
-	    }
+            parallel {
+                stage("stable") {
+                    environment {
+                        RUSTFLAGS = "-D warnings"
+                    }
+                    agent {
+                        docker {
+                            image 'amethystrs/builder-linux:stable'
+                            label 'docker'
+                        } 
+                    }
+                    steps {
+                        echo 'Running Cargo check...'
+                        sh 'cargo check --all --all-targets --features sdl_controller,json,saveload'
+                    }
+                }
+                stage("nightly") {
+                    environment {
+                        RUSTFLAGS = "-D warnings"
+                    }
+                    agent {
+                        docker {
+                            image 'amethystrs/builder-linux:nightly'
+                            label 'docker'
+                        } 
+                    }
+                    steps {
+                        echo 'Running Cargo check...'
+                        sh 'cargo check --all --all-targets --features nightly'
+                    }
+                }
+            }
         }
         stage('Run Tests') {
             parallel {
-                stage("Test on Windows") {                    
+                stage("Test on Windows") {
                     environment {
                         CARGO_HOME = 'C:\\Users\\root\\.cargo'
                         RUSTUP_HOME = 'C:\\Users\\root\\.rustup'
                     }
-                    agent { 
+                    agent {
                         label 'windows' 
                     }
                     steps {
@@ -77,10 +77,10 @@ pipeline {
                 }
                 stage("Test on Linux") {
                     agent {
-			docker {
-			    image 'amethystrs/builder-linux:stable'
-			    label 'docker'
-			} 
+                        docker {
+                            image 'amethystrs/builder-linux:stable'
+                            label 'docker'
+                        }
                     }
                     steps {
                         echo 'Beginning tests...'
