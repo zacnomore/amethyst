@@ -1,7 +1,7 @@
 pipeline {
     agent none
     stages {
-        stage("Pull new images") {
+        stage('Pull new images') {
             agent {
                 label 'docker'
             }
@@ -12,7 +12,7 @@ pipeline {
         }
         stage('Cargo Fmt') {
             environment {
-                RUSTFLAGS = "-D warnings"
+                RUSTFLAGS = '-D warnings'
             }
             agent {
                 docker {
@@ -27,9 +27,9 @@ pipeline {
         }
         stage('Cargo Check') {
             parallel {
-                stage("stable") {
+                stage('stable') {
                     environment {
-                        RUSTFLAGS = "-D warnings"
+                        RUSTFLAGS = '-D warnings'
                     }
                     agent {
                         docker {
@@ -42,9 +42,9 @@ pipeline {
                         sh 'cargo check --all --all-targets --features sdl_controller,json,saveload'
                     }
                 }
-                stage("nightly") {
+                stage('nightly') {
                     environment {
-                        RUSTFLAGS = "-D warnings"
+                        RUSTFLAGS = '-D warnings'
                     }
                     agent {
                         docker {
@@ -61,7 +61,7 @@ pipeline {
         }
         stage('Run Tests') {
             parallel {
-                stage("Test on Windows") {
+                stage('Test on Windows') {
                     environment {
                         CARGO_HOME = 'C:\\Users\\root\\.cargo'
                         RUSTUP_HOME = 'C:\\Users\\root\\.rustup'
@@ -75,7 +75,7 @@ pipeline {
                         echo 'Tests done!'
                     }
                 }
-                stage("Test on Linux") {
+                stage('Test on Linux') {
                     agent {
                         docker {
                             image 'amethystrs/builder-linux:stable'
@@ -89,7 +89,7 @@ pipeline {
                     }
                 }
                 // macOS is commented out due to needing to upgrade the OS, but MacStadium did not do the original install with APFS so we cannot upgrade easily
-                // stage("Test on macOS") {
+                // stage('Test on macOS') {
                 //     environment {
                 //         CARGO_HOME = '/Users/jenkins/.cargo'
                 //         RUSTUP_HOME = '/Users/jenkins/.rustup'
@@ -104,6 +104,57 @@ pipeline {
                 //     }
                 // }
             }
+        }
+        stage('Build and Upload Docs') {
+            stages {
+                stage('Build Docs') {
+                    parallel {
+                        stage('Build API Docs') {
+                            agent {
+                                docker {
+                                    image 'amethystrs/builder-linux:stable'
+                                    label 'docker'
+                                } 
+                            }
+                            steps {
+                                echo 'Generating API docs for the current commit...'
+                                sh 'cargo doc --all --no-deps --quiet --target-dir doc_artifacts/api/' // path to docs are doc_artifacts/api/doc
+                                echo 'API docs generation done!'
+                            }
+                        }
+                        stage('Build the Book') {
+                            agent {
+                                docker {
+                                    image 'amethystrs/builder-linux:stable'
+                                    label 'docker'
+                                } 
+                            }
+                            steps {
+                                echo 'Generating the Amethyst Book for the current commit...'
+                                sh 'mdbook build book --dest-dir ../doc_artifacts/book/'
+                                echo 'Amethyst Book generation done!'
+                            }
+                        }
+                    }
+                }
+                stage('Upload Docs') {
+                    agent {
+                        docker {
+                            image 'amethystrs/builder-linux:stable'
+                            label 'docker'
+                        } 
+                    }
+                    steps {
+                        // API Docs root path: doc_artifacts/api/doc
+                        // Book root path:     doc_artifacts/book
+                    }
+                }
+            }
+        }
+    }
+    post {
+        always {
+            archiveArtifacts artifacts: 'doc_artifacts/**/*', fingerprint: true
         }
     }
 }
