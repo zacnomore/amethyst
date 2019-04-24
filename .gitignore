@@ -20,3 +20,6 @@ thumbs.db
 
 # Thread profiler output
 thread_profile.json
+
+# CI files
+doc/

@@ -106,6 +106,8 @@ pipeline {
             }
         }
         stage('Build and Upload Docs') {
+            // Only update the docs site when a commit makes it to master.
+            when { branch 'master' }
             stages {
                 stage('Build Docs') {
                     parallel {
@@ -116,9 +118,30 @@ pipeline {
                                     label 'docker'
                                 } 
                             }
+                            // Generate master and all tagged releases of the API docs
                             steps {
                                 echo 'Generating API docs for the current commit...'
-                                sh 'cargo doc --all --no-deps --quiet --target-dir doc_artifacts/api/' // path to docs are doc_artifacts/api/doc
+                                sh '''#!/bin/bash
+
+                                    # fetch every tag and then add the master branch to a variable
+                                    tags=$(git tag)
+                                    branches="$tags master"
+
+                                    # loop over everything for which we want to create API documentation
+                                    for branch in $branches
+                                    do
+                                        [ "$branch" = "master" ] && git checkout master || git checkout "tags/$branch"
+                                        echo "Building API docs for $branch"
+                                        cargo doc --all --no-deps --quiet --target-dir "doc/$branch/"
+
+                                        # files are generated into a "doc" folder. Move those files to our API folder
+                                        mkdir doc/$branch/api
+                                        cp -rp doc/$branch/doc/* doc/$branch/api/
+
+                                        # delete unneeded files
+                                        rm -rf doc/$branch/debug doc/$branch/doc doc/$branch/.rustc_info.json
+                                    done
+                                    '''
                                 echo 'API docs generation done!'
                             }
                         }
@@ -129,9 +152,23 @@ pipeline {
                                     label 'docker'
                                 } 
                             }
+                            // Generate master and all tagged releases of the Book
                             steps {
                                 echo 'Generating the Amethyst Book for the current commit...'
-                                sh 'mdbook build book --dest-dir ../doc_artifacts/book/'
+                                sh '''#!/bin/bash
+
+                                    # fetch every tag and then add the master branch to a variable
+                                    tags=$(git tag)
+                                    branches="$tags master"
+
+                                    # loop over everything for which we want to create API documentation
+                                    for branch in $branches
+                                    do
+                                        [ "$branch" = "master" ] && git checkout master || git checkout "tags/$branch"
+                                        echo "Building Book for $branch"
+                                        mdbook build book --dest-dir ../doc/$branch/book/
+                                    done
+                                    '''
                                 echo 'Amethyst Book generation done!'
                             }
                         }
@@ -147,6 +184,9 @@ pipeline {
                     steps {
                         // API Docs root path: doc_artifacts/api/doc
                         // Book root path:     doc_artifacts/book
+
+                        // upload our docs & update the master
+                        sh ''
                     }
                 }
             }
@@ -154,7 +194,7 @@ pipeline {
     }
     post {
         always {
-            archiveArtifacts artifacts: 'doc_artifacts/**/*', fingerprint: true
+            archiveArtifacts artifacts: 'doc/**/*', fingerprint: true
         }
     }
 }
