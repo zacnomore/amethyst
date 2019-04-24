@@ -120,29 +120,23 @@ pipeline {
                             }
                             // Generate master and all tagged releases of the API docs
                             steps {
-                                echo 'Generating API docs for the current commit...'
-                                sh '''#!/bin/bash
-
-                                    # fetch every tag and then add the master branch to a variable
-                                    tags=$(git tag)
-                                    branches="$tags master"
-
-                                    # loop over everything for which we want to create API documentation
-                                    for branch in $branches
-                                    do
-                                        [ "$branch" = "master" ] && git checkout master || git checkout "tags/$branch"
-                                        echo "Building API docs for $branch"
-                                        cargo doc --all --no-deps --quiet --target-dir "doc/$branch/"
-
-                                        # files are generated into a "doc" folder. Move those files to our API folder
-                                        mkdir doc/$branch/api
-                                        cp -rp doc/$branch/doc/* doc/$branch/api/
-
-                                        # delete unneeded files
-                                        rm -rf doc/$branch/debug doc/$branch/doc doc/$branch/.rustc_info.json
-                                    done
-                                    '''
-                                echo 'API docs generation done!'
+                                script {
+                                    // generate API docs
+                                    println "Generating API docs for the current commit..."
+                                    branches = getBranches()
+                                    // checkout each branch and generate docs
+                                    for (branch in branches) {
+                                        checkoutBranch(branch)
+                                        println "Building API docs for ${branch}"
+                                        ex("cargo doc --all --no-deps --quiet --target-dir temp_doc/${branch}/")
+                                        // files are generated into a "doc" folder. Move those files to our API folder
+                                        ex("mkdir doc/${branch}/api")
+                                        ex("cp -rp temp_doc/${branch}/doc/* doc/${branch}/api/")
+                                    }
+                                    // delete unneeded files
+                                    ex("rm -rf temp_doc")
+                                    println "API docs generation done!"
+                                }
                             }
                         }
                         stage('Build the Book') {
@@ -154,22 +148,18 @@ pipeline {
                             }
                             // Generate master and all tagged releases of the Book
                             steps {
-                                echo 'Generating the Amethyst Book for the current commit...'
-                                sh '''#!/bin/bash
-
-                                    # fetch every tag and then add the master branch to a variable
-                                    tags=$(git tag)
-                                    branches="$tags master"
-
-                                    # loop over everything for which we want to create API documentation
-                                    for branch in $branches
-                                    do
-                                        [ "$branch" = "master" ] && git checkout master || git checkout "tags/$branch"
-                                        echo "Building Book for $branch"
-                                        mdbook build book --dest-dir ../doc/$branch/book/
-                                    done
-                                    '''
-                                echo 'Amethyst Book generation done!'
+                                script {
+                                    // Generate book
+                                    println "Generating the Amethyst Book for the current commit..."
+                                    branches = getBranches()
+                                    // checkout each branch and generate docs
+                                    for (branch in branches) {
+                                        checkoutBranch(branch)
+                                        println "Building Book for ${branch}"
+                                        ex("mdbook build book --dest-dir ../doc/${branch}/book/")
+                                    }
+                                    println "Amethyst Book generation done!"
+                                }
                             }
                         }
                     }
@@ -198,4 +188,31 @@ pipeline {
             archiveArtifacts artifacts: 'doc/**/*', fingerprint: true
         }
     }
+}
+
+
+def getTags() {
+    return ex("git tag").split().toList()
+}
+
+// get all desired branches 
+def getBranches() {
+    def branches = getTags()
+    // add the master
+    branches.push("master")
+    return branches 
+}
+
+// checkout a branch. If it isn't master, add a tag prefix
+def checkoutBranch(branch) {
+    if (branch == "master") { ex("git checkout master") } else { ex("git checkout tags/${branch}") }
+}
+
+def ex(cmd) {
+    Process process = cmd.execute()
+    def out = new StringBuffer()
+    def err = new StringBuffer()
+    process.consumeProcessOutput( out, err )
+    process.waitFor()
+    return out.toString()
 }
