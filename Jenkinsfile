@@ -182,11 +182,12 @@ pipeline {
                         } 
                     }
                     steps {
-                        // API Docs root path: doc_artifacts/api/doc
-                        // Book root path:     doc_artifacts/book
-
-                        // upload our docs & update the master
-                        sh ''
+                        // API Docs root path: doc/{branch}/api
+                        // Book root path:     doc/{branch}/book
+                        sh '''#!/bin/bash
+                            # We also want the "latest" tag in a copy of the folder.
+                            cp -r doc/$(git describe --tags `git rev-list --tags --max-count=1`) doc/latest/
+                        '''
                     }
                 }
             }
